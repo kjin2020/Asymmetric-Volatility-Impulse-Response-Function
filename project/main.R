@@ -28,7 +28,33 @@ obj_spec <- bekk_spec(model = list(type = "bekk", asymmetric = T))
 x1 <- bekk_fit(obj_spec, resi, QML_t_ratios = T, crit = 1e-09)
 
 summary(x1)
-#VIRF
+
+#Wald test
+coef_cov <- function(theta, r, signs) {
+  l1 = BEKKs:::score_asymm_bekk(theta, r, signs)
+  l1 = crossprod(l1)
+  J1 = BEKKs:::hesse_asymm_bekk(theta, r, signs)
+  cov_mat = solve(J1) %*% l1 %*% solve(J1)
+  return(cov_mat)
+}
+cov_matrix = coef_cov(x1$theta,x1$data,matrix(rep(-1, N), ncol = 1))
+
+A_index_1 = 10 + 12
+A_index_2 = A_index_1 + 3
+
+G_index_1 = 10 + 16 * 2 + 12
+G_index_2 = G_index_1 + 3
+
+B_index_1 = 10 + 16 * 1 + 12
+B_index_2 = B_index_1 + 3
+
+#H_0
+wald.test(Sigma=cov_matrix, b=x1$theta, Terms = c(A_index_2,A_index_1,G_index_2,G_index_1))
+#H_1
+wald.test(Sigma=cov_matrix, b=x1$theta, Terms = c(B_index_1,B_index_2))
+
+
+#(A)VIRF
 N = 4
 n = dim(x1$H_t)[1]
 v <- 100
