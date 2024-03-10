@@ -5,6 +5,8 @@ library(ggplot2)
 library(tidyr)
 library(dplyr)
 library(Rcpp)
+library(aod)
+
 
 your_wd = "/.../project"
 
@@ -20,8 +22,8 @@ data_m2 = VAR(data,p=2)
 
 #data_m5 = VAR(data,p=5)
 
-resi = data_m2$residuals
-mq(resi, adj=4^2 * 2)
+resi = residuals(data_m2)
+#mq(resi, adj=4^2 * 2)
 
 obj_spec <- bekk_spec(model = list(type = "bekk", asymmetric = T))
 
@@ -55,56 +57,46 @@ wald.test(Sigma=cov_matrix, b=x1$theta, Terms = c(B_index_1,B_index_2))
 
 
 #(A)VIRF
-N = 4
-n = dim(x1$H_t)[1]
-v <- 100
-repl <- 20000
-per = 0.01
-index_series = 1
-start = 1
-end = n
 
-sign_1 = matrix(rep(1, N), ncol = 1)
-sign_2 = matrix(rep(0, N), ncol = 1)
-
-C = x1$C0
-A = x1$A
-B = x1$B
-G = x1$G
-H_0 = x1$H_t
-
-H_1 = matrix(NA,N,N*n)
-for(i in 1:n){
-  H_1[,(N*i-N+1):(N*i)] = matrix(H_0[i,],N,N)
+n.ahead <- 100
+n.iterations <- 2000
+q = 0.99
+index_series = 2
+time = 1
+span = dim(x1$H_t)[1]
+#Generate a shocks matrix
+shocks_mat <- function(x,q,index_series,n.ahead,n.iterations){
+  z  = x$e_t 
+  N  = dim(z)[2]
+  z1 = matrix(nrow=n.ahead,ncol=N*n.iterations)
+  z2 = matrix(nrow=n.ahead,ncol=N*n.iterations)
+  shocks = matrix(c(rep(0,index_series-1),quantile(z[,index_series],q),rep(0,N-index_series)),nrow=1)
+  z1[1,] = c(rep(0,(index_series-1)*n.iterations),rep(quantile(z[,index_series],q),n.iterations),rep(0,(N-index_series)*n.iterations))
+  for (i in 1:N){
+    z1[2:n.ahead,((i-1)*n.iterations+1):(i*n.iterations)] = matrix(sample(z[,i],size=(n.ahead-1)*n.iterations,replace=T),nrow=n.ahead-1)
+    z2[,((i-1)*n.iterations+1):(i*n.iterations)] = matrix(sample(z[,i],size=n.ahead*n.iterations,replace=T),nrow=n.ahead)
+  }
+  return(list(shocks=shocks,z1=z1,z2=z2))
 }
 
-CC = t(C)%*%C
+avirf_bekk <- function(x,time,span=1,q,index_series,n.ahead,n.iterations){
+  N = dim(x$A)[1]
+  H_1 = matrix(NA,N,N*dim(x$H_t)[1])
+  for(i in 1:dim(x$H_t)[1]){
+    H_1[,(N*i-N+1):(N*i)] = matrix(x$H_t[i,],N,N)
+  }
+  z = shocks_mat(x,q,index_series,n.ahead,n.iterations)
+  return(virf_bekka(time,time+span,H_1,x$A,x$B,x$G,t(x$C0)%*%x$C0,z$shocks,z$z1,z$z2,n.ahead,n.iterations,N,matrix(rep(1, N),ncol = 1),matrix(rep(0, N), ncol = 1)))
+}
 
-shocks = matrix(c(rep(0,index_series-1),quantile(en[,index_series],per),rep(0,N-index_series)),nrow=1)
-
-z1 = matrix(nrow=v,ncol=N*repl)
-z2 = matrix(nrow=v,ncol=N*repl)
-
-en = x1$e_t
-
-z1[1,] = c(rep(0,(index_series-1)*repl),rep(quantile(en[,index_series],per),repl),rep(0,(N-index_series)*repl))
-z1[2:v,1:repl] = matrix(sample(en[,1],size=(v-1)*repl,replace=T),nrow=v-1)
-z1[2:v,(repl+1):(2*repl)]   = matrix(sample(en[,2],size=(v-1)*repl,replace=T),nrow=v-1)
-z1[2:v,(2*repl+1):(3*repl)] = matrix(sample(en[,3],size=(v-1)*repl,replace=T),nrow=v-1)
-z1[2:v,(3*repl+1):(4*repl)] = matrix(sample(en[,4],size=(v-1)*repl,replace=T),nrow=v-1)
-
-z2[,1:repl] = matrix(sample(en[,1],size=v*repl,replace=T),nrow=v)
-z2[,(repl+1):(2*repl)]   = matrix(sample(en[,2],size=v*repl,replace=T),nrow=v)
-z2[,(2*repl+1):(3*repl)] = matrix(sample(en[,3],size=v*repl,replace=T),nrow=v)
-z2[,(3*repl+1):(4*repl)] = matrix(sample(en[,4],size=v*repl,replace=T),nrow=v)
 start_time <- Sys.time()
-V = virf_bekka(start,end,H_1, A, B, G, CC, shocks, z1, z2, v , repl, N, sign_1,sign_2)
+V <- avirf_bekk(x1,time,span-1,q,index_series,n.ahead,n.iterations)
 end_time <- Sys.time()
 time_taken <- end_time - start_time
 print(time_taken)
 
 df <- data.frame(
-  periods   = 1:v, 
+  periods   = 1:n.ahead, 
   CETs      = V[,1], 
   GECs      = V[,5],
   HBCM      = V[,8],
@@ -156,3 +148,4 @@ p <- ggplot(df_long_2, aes(x = periods, y = value)) +
   ) +
   labs(x = NULL, y = NULL)  
 print(p)
+
