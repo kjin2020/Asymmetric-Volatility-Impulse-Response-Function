@@ -134,8 +134,10 @@ List monte_carlo_xi(const arma::mat H, const arma::mat z1, const arma::mat z2, c
   for (int k = 0; k < n; ++k) {
     arma::mat ht1 = H;
     arma::mat ht2 = H;
-    arma::uvec col_indices = {static_cast<unsigned int>(k), static_cast<unsigned int>(k+n), static_cast<unsigned int>(k+2*n), static_cast<unsigned int>(k+3*n)};
-    //arma::uvec col_indices = {static_cast<unsigned int>(k), static_cast<unsigned int>(k+n)};
+    arma::uvec col_indices(N);
+    for (size_t i = 0; i < col_indices.size(); ++i) {
+      col_indices(i) = static_cast<unsigned int>(k + i * n);
+    }
     arma::mat tmp1(N, N*v, arma::fill::zeros);
     arma::mat tmp2(N, N*v, arma::fill::zeros);
     for (int i = 0; i < v; ++i) {
