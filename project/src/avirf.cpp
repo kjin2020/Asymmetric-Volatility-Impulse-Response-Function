@@ -118,10 +118,9 @@ List updateH_A(const arma::mat &z, arma::mat &H, const arma::mat &A,
                const arma::mat &tA,const arma::mat &B,const arma::mat &tB,
                const arma::mat &G,const arma::mat &tG,const arma::mat &CC,
                int i,const arma::mat signs) {
-  arma::mat e = z.row(i) * eigen_value_decomposition(H) ;
-  arma::mat Xi = indicatorFunction(e, signs) * e.t() * e;
-
-  H = CC + tA * e.t() * e * A + indicatorFunction(e,signs)* tB * e.t() * e * B + tG * H * G;
+  arma::mat r = arma::chol(H).t() * z.row(i).t();
+  arma::mat Xi = indicatorFunction(r.t(), signs) * r * r.t();
+  H = CC + tA * r * r.t() * A + indicatorFunction(r.t(),signs) * tB * r * r.t() * B + tG * H * G;
   return Rcpp::List::create(Rcpp::Named("H") = Rcpp::wrap(H),
                                    Rcpp::Named("Xi") = Rcpp::wrap(Xi));
 }
@@ -158,30 +157,67 @@ List monte_carlo_xi(const arma::mat H, const arma::mat z1, const arma::mat z2, c
   return Rcpp::List::create(Rcpp::Named("xi_1") = Rcpp::wrap(xi_1/n),
                                      Rcpp::Named("xi_2") = Rcpp::wrap(xi_2/n));
 }
-
+// [[Rcpp::export]]
+arma::mat virf_bekk_symm(arma::mat H_t, arma::mat& A, arma::mat& G, arma::mat& CC, arma::mat& shocks, int& time, int& periods, int& N, arma::mat& D_duplication, arma::mat& D_gen_inv){
+  arma::mat H = H_t.submat(0,time*N-N,N-1,time*N-1);
+  arma::mat virf = arma::zeros(periods, N*(N+1)/2);
+  arma::mat Q_t = arma::chol(H);
+  arma::mat A_virf = D_gen_inv * kron(A,A).t() * D_duplication;
+  arma::mat G_virf = D_gen_inv * kron(G,G).t() * D_duplication;
+  arma::mat r = Q_t.t() * shocks.row(0).t();
+  arma::mat h_t_plus_1= A_virf * D_gen_inv * arma::vectorise(H)  ;
+  //arma::mat virf_temp = A_virf * D_gen_inv * arma::vectorise(r * r.t() - H);
+  arma::mat virf_temp = A_virf * D_gen_inv * arma::vectorise(r * r.t()-H);
+  //(as<arma::mat>(xi_matrix["xi_1"]) - as<arma::mat>(xi_matrix["xi_2"])).print("xi");
+  virf.row(0) = virf_temp.t();
+  int i=1;
+  while (i < periods){
+    virf_temp =  (A_virf+G_virf) * virf_temp;
+    virf.row(i) = virf_temp.t();
+    ++i;
+  }
+  return virf.each_row()/h_t_plus_1.t();
+//return virf;
+}
 
 // [[Rcpp::export]]
 arma::mat virf_bekk_asymm(arma::mat H_t, arma::mat& A, arma::mat& B, arma::mat& G, arma::mat& CC, arma::mat& shocks, arma::mat& z1, arma::mat& z2, int& time, int& periods, int iterations, int& N, arma::mat& sign_1,arma::mat& sign_2,arma::mat& D_duplication, arma::mat& D_gen_inv){
   arma::mat H = H_t.submat(0,time*N-N,N-1,time*N-1);
   arma::mat virf = arma::zeros(periods, N*(N+1)/2);
   List xi_matrix = monte_carlo_xi(H,z1,z2,A,A.t(),B,B.t(),G,G.t(),CC,periods,iterations,N,time,sign_1);
-  arma::mat Q_t = eigen_value_decomposition(H);
+  arma::mat Q_t = arma::chol(H);
   arma::mat A_virf = D_gen_inv * kron(A,A).t() * D_duplication;
   arma::mat B_virf = D_gen_inv * kron(B,B).t() * D_duplication;
   arma::mat G_virf = D_gen_inv * kron(G,G).t() * D_duplication;
-  arma::mat r = Q_t * shocks.row(0).t();
-//  arma::mat h_t_plus_1= A_virf * D_gen_inv * arma::vectorise(H)  + B_virf * D_gen_inv * arma::vectorise(as<arma::mat>(xi_matrix["xi_2"]).submat(0,0,N-1,N-1));
+  arma::mat r = Q_t.t() * shocks.row(0).t();
+  //arma::mat h_t_plus_1= A_virf * D_gen_inv * arma::vectorise(H)  + B_virf * D_gen_inv * arma::vectorise(as<arma::mat>(xi_matrix["xi_2"]).submat(0,0,N-1,N-1));
   arma::mat virf_temp = A_virf * D_gen_inv * arma::vectorise(r * r.t() - H)  + B_virf * D_gen_inv * arma::vectorise(indicatorFunction(r.t(),sign_2) * r * r.t() - as<arma::mat>(xi_matrix["xi_2"]).submat(0,0,N-1,N-1));
-
+  //arma::mat virf_temp = A_virf * D_gen_inv * arma::vectorise(r * r.t() - H);
+  //(as<arma::mat>(xi_matrix["xi_1"]) - as<arma::mat>(xi_matrix["xi_2"])).print("xi");
   virf.row(0) = virf_temp.t();
   int i=1;
   while (i < periods){
     virf_temp =  (A_virf+G_virf) * virf_temp + B_virf * D_gen_inv * arma::vectorise(as<arma::mat>(xi_matrix["xi_1"]).submat(0,i*N,N-1,(i+1)*N-1)-as<arma::mat>(xi_matrix["xi_2"]).submat(0,i*N,N-1,(i+1)*N-1));
+  //virf_temp =  (A_virf+G_virf) * virf_temp;
     virf.row(i) = virf_temp.t();
     ++i;
 }
   //return virf.each_row()/h_t_plus_1.t();
-return virf;
+  return virf;
+}
+
+// [[Rcpp::export]]
+
+arma::mat virf_bekk(int start,int end, arma::mat& H_t, arma::mat& A, arma::mat& G, arma::mat& CC, arma::mat& shocks, int& periods, int& N){
+  arma::mat virf = arma::zeros(periods, N*(N+1)/2);
+  arma::mat D_duplication = duplication_mat(N);
+  arma::mat D_gen_inv = arma::inv(D_duplication.t() * D_duplication) * D_duplication.t();
+  int time=start;
+  while (time < end) {
+    virf += virf_bekk_symm(H_t, A, G, CC, shocks, time, periods, N, D_duplication,D_gen_inv);
+    ++time;
+  }
+  return virf/(end-start);
 }
 
 // [[Rcpp::export]]
