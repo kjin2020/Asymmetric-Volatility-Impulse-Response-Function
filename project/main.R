@@ -2,15 +2,13 @@ library(timeSeries)
 library(zoo)
 library(tseries)
 library(xts)
-library(openxlsx)
 library(vars)
 library(BEKKs)
 library(MTS)
 library(ggplot2)
 library(MASS)
 library(tidyr)
-library(aod)
-library(bvhar)
+#library(aod)
 
 
 
@@ -22,105 +20,108 @@ data = read.csv(paste0(your_wd,"/data/data.csv"))
 
 
 #VAR-BEKK-GARCH
-#Estimating conditional mean with VAR
-data_m1 = VAR(data,p=1)
-data_m2 = VAR(data,p=2)
-data_m3 = VAR(data,p=3)
-data_m4 = VAR(data,p=4)
-data_m5 = VAR(data,p=5)
-data_m6 = VAR(data,p=6)
-data_m7 = VAR(data,p=7)
-data_m8 = VAR(data,p=8)
-data_m9 = VAR(data,p=9)
-data_m10 = VAR(data,p=10)
-data_m11 = VAR(data,p=11)
-data_m12 = VAR(data,p=12)
-data_m13 = VAR(data,p=13)
-data_m14 = VAR(data,p=14)
-data_m15 = VAR(data,p=15)
-data_m16 = VAR(data,p=16)
-data_m17 = VAR(data,p=17)
-data_m18 = VAR(data,p=18)
-data_m19 = VAR(data,p=19)
-data_m20 = VAR(data,p=20)
-data_m21 = VAR(data,p=21)
-data_m22 = VAR(data,p=22)
-data_m23 = VAR(data,p=23)
+##Estimating conditional mean with VAR
+VARselect(data)
+###AIC(n)  HQ(n)  SC(n) FPE(n) 
+###3      1      1      3 
+###LR test (PAC test Lütkepohl, H. (1985))
+####df = 4**2 = 16
+####LR1= 32
+####LR5= 26.296
+sigma1 = log(det(cov(residuals(VAR(data,p=1)))))
+sigma2 = log(det(cov(residuals(VAR(data,p=2)))))
+sigma3 = log(det(cov(residuals(VAR(data,p=3)))))
+sigma4 = log(det(cov(residuals(VAR(data,p=4)))))
+sigma5 = log(det(cov(residuals(VAR(data,p=5)))))
+sigma6 = log(det(cov(residuals(VAR(data,p=6)))))
+sigma7 = log(det(cov(residuals(VAR(data,p=7)))))
 
+iT= dim(data)[1]
+k = dim(data)[2]
 
+LR_2 = iT * (sigma1 - sigma2)
+LR_3 = iT * (sigma2 - sigma3)#***
+LR_4 = iT * (sigma3 - sigma4)
+LR_5 = iT * (sigma4 - sigma5)
+LR_6 = iT * (sigma5 - sigma6)
+LR_7 = iT * (sigma6 - sigma7)
 
+###Granger causality test
+colnames(data) = c("ncets","gdcets","gdele","GECs")
 
-print(c(data_m1$aic,data_m1$bic,data_m1$hq))
-print(c(data_m2$aic,data_m2$bic,data_m2$hq))
-print(c(data_m3$aic,data_m3$bic,data_m3$hq))
-print(c(data_m4$aic,data_m4$bic,data_m4$hq))
-print(c(data_m5$aic,data_m5$bic,data_m5$hq))
-print(c(data_m6$aic,data_m6$bic,data_m6$hq))
-print(c(data_m7$aic,data_m7$bic,data_m7$hq))
-print(c(data_m8$aic,data_m8$bic,data_m8$hq))
-print(c(data_m9$aic,data_m9$bic,data_m9$hq))
-print(c(data_m10$aic,data_m10$bic,data_m10$hq))
-print(c(data_m11$aic,data_m11$bic,data_m11$hq))
-print(c(data_m12$aic,data_m12$bic,data_m12$hq))
-print(c(data_m13$aic,data_m13$bic,data_m13$hq))
-print(c(data_m14$aic,data_m14$bic,data_m14$hq))
-print(c(data_m15$aic,data_m15$bic,data_m15$hq))
-print(c(data_m16$aic,data_m16$bic,data_m16$hq))
-print(c(data_m17$aic,data_m17$bic,data_m17$hq))
-print(c(data_m18$aic,data_m18$bic,data_m18$hq))
-print(c(data_m19$aic,data_m19$bic,data_m19$hq))
-print(c(data_m20$aic,data_m20$bic,data_m20$hq))
-print(c(data_m21$aic,data_m21$bic,data_m21$hq))
-print(c(data_m22$aic,data_m22$bic,data_m22$hq))
-print(c(data_m23$aic,data_m23$bic,data_m23$hq))
+create_lag <- function(x, k){
+  c(rep(NA, k), x[1:(length(x)-k)])
+}
 
+max_lag <- 4
+for(j in 1:max_lag){
+  data <- cbind(data, create_lag(data[,"ncets"], k=j))
+  data <- cbind(data, create_lag(data[,"gdcets"], k=j))
+  data <- cbind(data, create_lag(data[,"gdele"], k=j))
+  data <- cbind(data, create_lag(data[,"GECs"], k=j))
+}
+colnames(data) <- c(
+  "ncets","gdcets","gdele","GECs",
+  paste(rep(c("ncets","gdcets","gdele","GECs"), 4), rep(1:4, each=4), sep="_"))
 
-data_m3_1 = refVAR(data_m3, thres=1.96)
-data_m4_1 = refVAR(data_m4, thres=1.96)
-data_m5_1 = refVAR(data_m5, thres=1.96)
-data_m6_1 = refVAR(data_m6, thres=1.96)
-data_m7_1 = refVAR(data_m7, thres=1.96)
+data = as.data.frame(data)
 
-print(c(data_m1$aic,data_m1$bic,data_m1$hq))
-print(c(data_m2$aic,data_m2$bic,data_m2$hq))
-print(c(data_m3$aic,data_m3$bic,data_m3$hq))
-print(c(data_m4$aic,data_m4$bic,data_m4$hq))
-print(c(data_m5$aic,data_m5$bic,data_m5$hq))
-print(c(data_m6$aic,data_m6$bic,data_m6$hq))
-print(c(data_m7$aic,data_m7$bic,data_m7$hq))
-print(c(data_m8$aic,data_m8$bic,data_m8$hq))
-print(c(data_m9$aic,data_m9$bic,data_m9$hq))
-print(c(data_m10$aic,data_m10$bic,data_m10$hq))
+lm_ncets_1 = lm(ncets ~ ncets_1 + ncets_2 + ncets_3 + gdcets_1 + gdcets_2 + gdcets_3 + gdele_1 + gdele_2 + gdele_3 + GECs_1 + GECs_2 + GECs_3, data=data)
+lm_ncets_2 = lm(ncets ~ ncets_1 + ncets_2 + ncets_3 + gdele_1 + gdele_2 + gdele_3 + GECs_1 + GECs_2 + GECs_3, data=data)
+anova(lm_ncets_1, lm_ncets_2)#***
+lm_ncets_3 = lm(ncets ~ ncets_1 + ncets_2 + ncets_3 + gdcets_1 + gdcets_2 + gdcets_3 + GECs_1 + GECs_2 + GECs_3, data=data)
+anova(lm_ncets_1, lm_ncets_3)
+lm_ncets_4 = lm(ncets ~ ncets_1 + ncets_2 + ncets_3 + gdcets_1 + gdcets_2 + gdcets_3 + gdele_1 + gdele_2 + gdele_3, data=data)
+anova(lm_ncets_1, lm_ncets_4)
 
-print(c(data_m2_1$aic,data_m2_1$bic,data_m2_1$hq))
-print(c(data_m3_1$aic,data_m3_1$bic,data_m3_1$hq))
-print(c(data_m4_1$aic,data_m4_1$bic,data_m4_1$hq))
-print(c(data_m5_1$aic,data_m5_1$bic,data_m5_1$hq))
-print(c(data_m6_1$aic,data_m6_1$bic,data_m6_1$hq))
-print(c(data_m7_1$aic,data_m7_1$bic,data_m7_1$hq))
+lm_gdcets_1 = lm(gdcets ~ ncets_1 + ncets_2 + ncets_3 + gdcets_1 + gdcets_2 + gdcets_3 + gdele_1 + gdele_2 + gdele_3 + GECs_1 + GECs_2 + GECs_3, data=data)
+lm_gdcets_2 = lm(gdcets ~ gdcets_1 + gdcets_2 + gdcets_3 + gdele_1 + gdele_2 + gdele_3 + GECs_1 + GECs_2 + GECs_3, data=data)
+anova(lm_gdcets_1, lm_gdcets_2)#*
+lm_gdcets_3 = lm(gdcets ~ ncets_1 + ncets_2 + ncets_3 + gdcets_1 + gdcets_2 + gdcets_3 + GECs_1 + GECs_2 + GECs_3, data=data)
+anova(lm_gdcets_1, lm_gdcets_3)
+lm_gdcets_4 = lm(gdcets ~ ncets_1 + ncets_2 + ncets_3 + gdcets_1 + gdcets_2 + gdcets_3 + gdele_1 + gdele_2 + gdele_3, data=data)
+anova(lm_gdcets_1, lm_gdcets_4)
 
+lm_gdele_1 = lm(gdele ~ ncets_1 + ncets_2 + ncets_3 + gdcets_1 + gdcets_2 + gdcets_3 + gdele_1 + gdele_2 + gdele_3 + GECs_1 + GECs_2 + GECs_3, data=data)
+lm_gdele_2 = lm(gdele ~ gdcets_1 + gdcets_2 + gdcets_3 + gdele_1 + gdele_2 + gdele_3 + GECs_1 + GECs_2 + GECs_3, data=data)
+anova(lm_gdele_1, lm_gdele_2)
+lm_gdele_3 = lm(gdele ~ ncets_1 + ncets_2 + ncets_3 + gdele_1 + gdele_2 + gdele_3 + GECs_1 + GECs_2 + GECs_3, data=data)
+anova(lm_gdele_1, lm_gdele_3)
+lm_gdele_4 = lm(gdele ~ ncets_1 + ncets_2 + ncets_3 + gdcets_1 + gdcets_2 + gdcets_3 + gdele_1 + gdele_2 + gdele_3, data=data)
+anova(lm_gdele_1, lm_gdele_4)
 
+lm_GECs_1 = lm(GECs ~ ncets_1 + ncets_2 + ncets_3 + gdcets_1 + gdcets_2 + gdcets_3 + gdele_1 + gdele_2 + gdele_3 + GECs_1 + GECs_2 + GECs_3, data=data)
+lm_GECs_2 = lm(GECs ~ gdcets_1 + gdcets_2 + gdcets_3 + gdele_1 + gdele_2 + gdele_3 + GECs_1 + GECs_2 + GECs_3, data=data)
+anova(lm_GECs_1, lm_GECs_2) #**
+lm_GECs_3 = lm(GECs ~ ncets_1 + ncets_2 + ncets_3 + gdele_1 + gdele_2 + gdele_3 + GECs_1 + GECs_2 + GECs_3, data=data)
+anova(lm_GECs_1, lm_GECs_3)
+lm_GECs_4 = lm(GECs ~ ncets_1 + ncets_2 + ncets_3 + gdcets_1 + gdcets_2 + gdcets_3 + GECs_1 + GECs_2 + GECs_3, data=data)
+anova(lm_GECs_1, lm_GECs_4)
 
-summary(data_m1)
-#Extracting residuals
-resi = residuals(data_m3)
-mq(resi, adj=4^2 *3)
+###Construct VAR based on Granger causality test result
+lm_ncets = lm(ncets ~ ncets_1  + ncets_2 + ncets_3 + gdcets_1 + gdcets_2 + gdcets_3, data=data)
+lm_gdcets= lm(gdcets~ gdcets_1 + gdcets_2+ gdcets_3, data=data)
+lm_gdele = lm(gdele ~ gdele_1  + gdele_2 + gdele_3, data=data)
+lm_GECs  = lm(GECs  ~  ncets_1 + ncets_2 + ncets_3 + GECs_1 + GECs_2 + GECs_3, data=data)
 
-obj_spec <- bekk_spec(model = list(type = "bekk", asymmetric = T))
+mq(resi, adj=6*2+3*2)
+
+###Extracting residuals
+res_ncets = residuals(lm_ncets)
+res_gdcets= residuals(lm_gdcets)
+res_gdele = residuals(lm_gdele)
+res_GECs  = residuals(lm_GECs)
+
+resi = cbind(res_ncets,res_gdcets,res_gdele,res_GECs)
+####Multivariate Ljung-Box test
+mq(resi, adj=6*2+3*2)
+
+#BEKK-GARCH
+obj_spec <- bekk_spec(model = list(type = "bekk", asymmetric = F))
+
 x1 <- bekk_fit(obj_spec, resi, QML_t_ratios = T, crit = 1e-09,max_iter = 500)
 
-x2 = virf(x1,index_series = 3,q = 0.99,n.ahead=100)
-
-plot(x2)
-
-summary(x1)
-
 print(x1$A_t)
-
-print(x1$B_t)
-
-print(x1$G_t)
-
 
 portmanteau.test(x1,5)
 
@@ -129,8 +130,6 @@ portmanteau.test(x1,15)
 portmanteau.test(x1,20)
 
 portmanteau.test(x1,50)
-
-
 
 #Wald test
 #coef_cov <- function(theta, r, signs) {
@@ -156,12 +155,16 @@ portmanteau.test(x1,50)
 #H_1
 #wald.test(Sigma=cov_matrix, b=x1$theta, Terms = c(B_index_1,B_index_2))
 
+##co-volatility
+eps_mean = apply(x1$e_t,MARGIN=2,mean)
+x1$A[3,3] * x1$A[4,4] * eps_mean[3]
+x1$A[3,3] * x1$A[4,4] * eps_mean[4]
 
 #(A)VIRF
 #Configuring some parameters
 #Horizon
-symmetric = FALSE
-N=dim(data)[2]
+symmetric = TRUE
+N=dim(resi)[2]
 x=x1
 n.ahead <- 100
 #Trajectories
@@ -169,12 +172,12 @@ n.iterations <- 100000
 #Percentile
 q = 0.99
 #1-4 denotes the national CETs, GECs, Hubei, and Guangdong CETs, respectively.
-index_series = 1
+index_series = 4
 #Starting time
 time = 1
 #Duration
 span = dim(x1$H_t)[1]
-span = 2
+#span = 2
 #Generate shock matrices, \(z_1\) and \(z_2\)
 shocks_mat <- function(x,q,index_series,n.ahead,n.iterations){
   z  = x$e_t
@@ -206,8 +209,8 @@ avirf_bekk <- function(x,time,span=1,q,index_series,n.ahead,n.iterations,symmetr
 }
 
 start_time <- Sys.time()
-V <- avirf_bekk(x1,time,span-1,q,index_series,n.ahead,n.iterations,symmetric)
-end_time <- Sys.time()
+V          <- avirf_bekk(x1,time,span-1,q,index_series,n.ahead,n.iterations,symmetric)
+end_time   <- Sys.time()
 time_taken <- end_time - start_time
 print(time_taken)
 
@@ -243,7 +246,3 @@ print(p)
 #write.csv(df,file=paste0(your_wd,"/data/",ifelse(symmetric==TRUE,'symmetric','asymmetric'),"/Response_to_",ifelse(q>0.5,'positive','negative'),"_news_in_M",index_series,".csv"),row.names = F)
 #write.csv(data,file=paste0(your_wd,"/data/data.csv"),row.names = F)
 
-##co-volatility
-eps_mean = apply(x1$e_t,MARGIN=2,mean)
-x1$A[3,3] * x1$A[4,4] * eps_mean[3]
-x1$A[3,3] * x1$A[4,4] * eps_mean[4]
